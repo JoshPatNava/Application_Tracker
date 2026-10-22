@@ -5,11 +5,8 @@ from database import(
     create_table,
     add_application,
     get_application,
-    check_columns
 )
 
-check_columns()
-'''
 st.set_page_config(
     page_title = "Job Application Tracker",
     layout = "wide"
@@ -27,7 +24,6 @@ tab1, tab2 = st.tabs([
 
 with tab2:
     st.subheader("New Application")
-
     with st.form("application_form"):
         company = st.text_input("Company")
         position = st.text_input("Job Position")
@@ -98,4 +94,5 @@ with tab1:
             hide_index=True,
             width="stretch"
         )
-'''
+
+st.stop()

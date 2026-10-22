@@ -42,12 +42,3 @@ def get_application():
         columns = [col[0] for col in cursor.description]
         return [dict(zip(columns, row))
                 for row in cursor.fetchall()]
-
-def check_columns():
-    with get_connection() as conn:
-        cursor = conn.execute(
-            "PRAGMA table_info(applications)"
-        )
-
-        for column in cursor.fetchall():
-            print(column)
