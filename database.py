@@ -23,7 +23,7 @@ def create_table():
         """)
 
 def add_application(company, position, date_applied, status, job_url, notes):
-    with get_connection as conn:
+    with get_connection() as conn:
         conn.execute("""
             INSERT INTO applications
                 (company, position, date_applied,
