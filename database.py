@@ -17,7 +17,7 @@ def create_table():
             position TEXT NOT NULL,
             date_applied DATE NOT NULL,
             status TEXT NOT NULL DEFAULT 'Applied',
-            job_url TEXT
+            job_url TEXT,
             notes TEXT
             )
         """)
