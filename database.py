@@ -42,3 +42,40 @@ def get_application():
         columns = [col[0] for col in cursor.description]
         return [dict(zip(columns, row))
                 for row in cursor.fetchall()]
+
+def update_application(
+    application_id,
+    company,
+    position,
+    date_applied,
+    status,
+    job_url,
+    notes
+):
+    with get_connection() as conn:
+        conn.execute("""
+            UPDATE applications
+            SET
+                company = ?,
+                position = ?,
+                date_applied = ?,
+                status = ?,
+                job_url = ?,
+                notes = ?
+            WHERE id = ?
+        """, (
+            company,
+            position,
+            date_applied,
+            status,
+            job_url,
+            notes,
+            application_id
+        ))
+
+def delete_application(application_id):
+    with get_connection() as conn:
+        conn.execute("""
+            DELETE FROM applications
+            WHERE id = ?
+        """, (application_id,))
