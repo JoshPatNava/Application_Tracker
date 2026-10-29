@@ -23,6 +23,8 @@ def create_table():
         """)
 
 def add_application(company, position, date_applied, status, job_url, notes):
+    company = " ".join(company.strip().split())
+    position = " ".join(position.strip().split())
     with get_connection() as conn:
         conn.execute("""
             INSERT INTO applications
@@ -79,3 +81,30 @@ def delete_application(application_id):
             DELETE FROM applications
             WHERE id = ?
         """, (application_id,))
+
+
+def normalize_application_text(value):
+    return " ".join(value.strip().split()).casefold()
+
+def create_unique_index():
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS
+                idx_unique_application
+            ON applications (
+                lower(trim(company)),
+                lower(trim(position))
+            )
+        """)
+
+def application_exists(company, position):
+    with get_connection() as conn:
+        cursor = conn.execute("""
+            SELECT 1
+            FROM applications
+            WHERE lower(trim(company)) = lower(trim(?))
+              AND lower(trim(position)) = lower(trim(?))
+            LIMIT 1
+        """, (company, position))
+
+        return cursor.fetchone() is not None

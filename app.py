@@ -1,13 +1,19 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
 
 from database import(
     create_table,
     add_application,
     get_application,
     update_application,
-    delete_application
+    delete_application,
+    create_unique_index,
+    application_exists
 )
+
+if st.session_state.get("update_success", False):
+    st.success("Application updated successfully!")
 
 st.set_page_config(
     page_title = "Job Application Tracker",
@@ -15,6 +21,7 @@ st.set_page_config(
 )
 
 create_table()
+create_unique_index()
 
 st.title("Job Application Tracker")
 st.write("Manage and analyze your job applications")
@@ -27,7 +34,9 @@ tab1, tab2, tab3 = st.tabs([
 
 with tab2:
     st.subheader("New Application")
-    with st.form("application_form"):
+
+    with st.form("application_form", clear_on_submit=True):
+
         company = st.text_input("Company")
         position = st.text_input("Job Position")
         date_applied = st.date_input("Date Applied")
@@ -50,12 +59,23 @@ with tab2:
             "Save Application"
         )
 
-        if submitted:
-            if not company.strip() or not position.strip():
-                st.error(
-                    "Company and position are required."
-                )
-            else:
+    # Process submission outside the form
+    if submitted:
+
+        if not company.strip() or not position.strip():
+            st.error(
+                "Company and position are required."
+            )
+
+        elif application_exists(company, position):
+            st.warning(
+                "This application already exists! "
+                "Please use Manage Applications "
+                "to update the existing entry."
+            )
+
+        else:
+            try:
                 add_application(
                     company.strip(),
                     position.strip(),
@@ -64,34 +84,86 @@ with tab2:
                     job_url.strip(),
                     notes.strip()
                 )
-                st.success("Application saved!")
+
+            except sqlite3.IntegrityError:
+                st.warning(
+                    "An application with this company "
+                    "and position already exists."
+                )
+
+            else:
+                st.success(
+                    "Application saved successfully!"
+                )
 
 with tab1:
     applications = get_application()
     df = pd.DataFrame(applications)
 
+    # All possible application statuses
+    statuses = [
+        "Applied",
+        "Interviewing",
+        "Offer",
+        "Rejected",
+        "Withdrawn"
+    ]
+
+    st.subheader("Application Overview")
+
     if df.empty:
         st.info("No applications yet. Add your first one!")
+        status_counts = pd.Series(dtype=int)
+
     else:
-        total = len(df)
-        interviews = (df["status"] == "Interviewing").sum()
-        offers = (df["status"] == "Offer").sum()
-        rejected = (df["status"] == "Rejected").sum()
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        col1.metric("Total Applications", total)
-        col2.metric("Interviewing", interviews)
-        col3.metric("Offers", offers)
-        col4.metric("Rejected", rejected)
-
-        st.subheader("Application Status")
-
         status_counts = df["status"].value_counts()
-        st.bar_chart(status_counts)
 
-        st.subheader("All Applications")
+    # Include every status, even those with zero entries
+    status_counts = status_counts.reindex(
+        statuses,
+        fill_value=0
+    )
 
+    total = len(df)
+    interviews = int(status_counts["Interviewing"])
+    offers = int(status_counts["Offer"])
+    rejected = int(status_counts["Rejected"])
+
+    # --------------------------------------------------
+    # Dashboard Metrics
+    # --------------------------------------------------
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Total Applications", total)
+    col2.metric("Interviewing", interviews)
+    col3.metric("Offers", offers)
+    col4.metric("Rejected", rejected)
+
+    # --------------------------------------------------
+    # Application Status Chart
+    # --------------------------------------------------
+
+    st.subheader("Application Status")
+
+    chart_data = status_counts.rename_axis(
+        "Status"
+    ).reset_index(name="Count")
+
+    st.bar_chart(
+        chart_data,
+        x="Status",
+        y="Count",
+        sort=False
+    )
+
+    # --------------------------------------------------
+    # All Applications
+    # --------------------------------------------------
+
+    st.subheader("All Applications")
+
+    if not df.empty:
         st.dataframe(
             df,
             hide_index=True,
@@ -181,32 +253,41 @@ with tab3:
             )
 
             # Save changes
-            submitted = st.form_submit_button(
-                "Save Changes"
-            )
+            submitted = st.form_submit_button("Save Changes")
 
             if submitted:
                 if not company.strip() or not position.strip():
-                    st.error(
-                        "Company and position are required."
-                    )
+                    st.error("Company and position are required.")
 
                 else:
-                    update_application(
-                        selected_id,
-                        company.strip(),
-                        position.strip(),
-                        date_applied.isoformat(),
-                        status,
-                        job_url.strip(),
-                        notes.strip()
-                    )
+                    try:
+                        rows_updated = update_application(
+                            selected_id,
+                            company.strip(),
+                            position.strip(),
+                            date_applied.isoformat(),
+                            status,
+                            job_url.strip(),
+                            notes.strip()
+                        )
 
-                    st.success(
-                        "Application updated successfully!"
-                    )
-                    st.rerun()
-        # Delete Application
+                    except sqlite3.IntegrityError:
+                        st.error(
+                            "Another application already exists "
+                            "with this company and position."
+                        )
+
+                    except sqlite3.DatabaseError as error:
+                        st.error(f"Database error: {error}")
+
+                    else:
+                        if rows_updated == 0:
+                            st.warning(
+                                "No application was found with the selected ID."
+                            )
+                        else:
+                            st.session_state["update_success"] = True
+                            st.rerun()        # Delete Application
         st.divider()
         st.subheader("Delete Application")
 
